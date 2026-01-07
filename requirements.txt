@@ -1,0 +1,10 @@
+streamlit
+pandas
+requests
+yfinance
+plotly
+openpyxl
+supabase
+fpdf
+xlsxwriter
+altair
