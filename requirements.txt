@@ -8,3 +8,4 @@ supabase
 fpdf
 xlsxwriter
 altair
+bcrypt
