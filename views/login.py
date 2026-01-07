@@ -4,7 +4,7 @@ from db.repositories.usuarios_repo import validar_login
 
 def mostrar_login():
     # ==========================================================================
-    # CSS AVANZADO: LIMPIEZA VISUAL TOTAL
+    # CSS AVANZADO: CORRECCIÓN DE COLOR DE TEXTO
     # ==========================================================================
     st.markdown("""
     <style>
@@ -33,14 +33,25 @@ def mostrar_login():
             letter-spacing: 1.5px;
         }
         
-        /* 3. Ajuste de Inputs */
+        /* 3. Ajuste de Inputs (AQUÍ ESTÁ LA CORRECCIÓN) */
         .stTextInput input {
-            background-color: #F8F9F9 !important;
+            background-color: #F8F9F9 !important; /* Fondo claro */
+            color: #17202A !important;           /* 🔥 TEXTO OSCURO OBLIGATORIO */
+            caret-color: #17202A !important;     /* Color del cursor (la barrita que parpadea) */
             border: 1px solid #E5E8E8 !important;
         }
+        
+        /* Aseguramos que al escribir se vea oscuro */
         .stTextInput input:focus {
             border-color: #154360 !important;
             box-shadow: 0 0 0 1px #154360 !important;
+            color: #17202A !important;
+        }
+        
+        /* Corrección para autocompletado de Chrome (fondo amarillo feo) */
+        .stTextInput input:-webkit-autofill {
+            -webkit-text-fill-color: #17202A !important;
+            -webkit-box-shadow: 0 0 0px 1000px #F8F9F9 inset !important;
         }
     </style>
     """, unsafe_allow_html=True)
