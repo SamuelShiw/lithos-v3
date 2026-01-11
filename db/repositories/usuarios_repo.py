@@ -5,48 +5,10 @@ import streamlit as st
 
 # import bcrypt  # Comentado para la demo, usaremos texto plano por ahora
 
-def validar_login(username, password_input):
-    """
-    Valida usuario contra Supabase.
-    Acepta contraseña '1234' (texto plano) para tu Demo.
-    """
-    supabase = get_supabase()
-    
-    try:
-        # 1. Buscar al usuario por su username
-        response = supabase.table("usuarios")\
-            .select("*")\
-            .eq("username", username)\
-            .execute()
-        
-        # Si no existe el usuario
-        if not response.data:
-            return None
-        
-        user = response.data[0]
-        
-        # 2. Verificar si está activo
-        if not user.get('activo', True):
-            st.error("Usuario inactivo. Contacte al administrador.")
-            return None
+# Nota: la versión legacy de `validar_login` fue removida porque estaba duplicada.
+# La función unificada `validar_login` más abajo soporta tanto `password_hash` como
+# el campo `password` en texto plano para compatibilidad temporal.
 
-        # 3. VERIFICACIÓN DE CONTRASEÑA (CRÍTICO PARA TU DEMO)
-        # Aquí verificamos si la contraseña de la BD coincide con la escrita
-        
-        # A) Intento con Texto Plano (Esto es lo que hará funcionar tu '1234')
-        if user.get('password') == password_input:
-            return user
-            
-        # B) (Futuro) Aquí iría la validación de Hash si usaras encriptación
-        # if user.get('password_hash') and check_password_hash(user['password_hash'], password_input):
-        #     return user
-
-        # Si ninguna coincide
-        return None
-
-    except Exception as e:
-        print(f"Error en login: {e}")
-        return None
 
 # --- UTILIDADES DE HASH ---
 def hash_password(password):
@@ -57,6 +19,11 @@ def check_password(password, hashed):
 
 # --- LOGIN Y CONSULTAS ---
 def validar_login(username, password):
+    """
+    Valida el login soportando:
+    - usuarios con 'password_hash' (hashed)
+    - usuarios legacy con 'password' en texto plano (compatibilidad)
+    """
     client = get_supabase()
     # 1. Buscar usuario activo
     response = client.table("usuarios").select("*")\
@@ -66,9 +33,14 @@ def validar_login(username, password):
     
     if response.data:
         usuario = response.data[0]
-        # 2. Verificar Hash
+        # 2. Verificar contraseña (hash o texto plano)
         stored_hash = usuario.get('password_hash')
+        stored_pw = usuario.get('password')
+        # Verificar hash si existe
         if stored_hash and check_password(password, stored_hash):
+            return usuario
+        # Compatibilidad: verificar texto plano si existe
+        if stored_pw and stored_pw == password:
             return usuario
     return None
 
