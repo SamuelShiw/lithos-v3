@@ -33,7 +33,8 @@ def get_market_data():
             "status": True
         }
     except:
-        return {"tc": 3.75, "oz_usd": 2650.0, "gr_pen": 320.0, "status": False}
+        # FALLBACK: Valores aproximados de mercado 2026 si falla internet
+        return {"tc": 3.75, "oz_usd": 4500.0, "gr_pen": 487.0, "status": False}
 
 def get_estado_mina():
     """
@@ -57,7 +58,6 @@ def get_estado_mina():
             ids = [e['id'] for e in eventos]
             
             # --- CORRECCIÓN CLAVE: Obtener mapa de nombres de labores ---
-            # Traemos solo ID y Nombre de todas las labores para cruzar información
             res_lab = client.table('labores').select('id, nombre').execute()
             mapa_labores = {l['id']: l['nombre'] for l in res_lab.data} if res_lab.data else {}
 
@@ -68,14 +68,10 @@ def get_estado_mina():
             if paradas:
                 estado = {"color": "#C0392B", "texto": "PARADA TOTAL DETECTADA", "icono": "🔴"}
                 for p in paradas:
-                    # Obtenemos nombre real, si no existe usamos el ID
                     lid = p.get('labor_id')
                     nombre_labor = mapa_labores.get(lid, f"Labor {lid}")
                     motivo = p.get('motivo_parada')
-                    
-                    # Limpieza de texto "None"
                     desc_motivo = motivo if motivo and motivo != "None" else "Parada sin descripción"
-                    
                     alertas.append(f"🔴 <b>{nombre_labor}</b>: {desc_motivo}")
 
             elif restringidos:
@@ -85,7 +81,6 @@ def get_estado_mina():
                     nombre_labor = mapa_labores.get(lid, f"Labor {lid}")
                     motivo = r.get('motivo_parada')
                     desc_motivo = motivo if motivo and motivo != "None" else "Restricción operativa"
-                    
                     alertas.append(f"🟡 <b>{nombre_labor}</b>: {desc_motivo}")
             
             # 3. Calcular KPIs (Sumatoria)
@@ -121,8 +116,13 @@ def mostrar_dashboard():
     turno = "NOCHE" if (ahora.hour >= 18 or ahora.hour < 6) else "DÍA"
     fecha_str = ahora.strftime("%d-%m-%Y")
     
-    # --- Carga de Datos ---
-    fin = get_market_data()
+    # --- [NUEVO] Lógica de Carga de Datos Financieros con Cache ---
+    if 'data_mercado' not in st.session_state:
+        st.session_state['data_mercado'] = get_market_data()
+    
+    # Usamos la variable de sesión en lugar de llamar a la función directo
+    fin = st.session_state['data_mercado']
+
     estado, kpis, lista_alertas = get_estado_mina()
     
     # --- CSS INDUSTRIAL ---
@@ -142,8 +142,10 @@ def mostrar_dashboard():
         
         /* 2. Ticker Financiero */
         .fin-row {{
-            display: flex; gap: 15px; margin-bottom: 20px; font-family: 'Consolas', monospace;
+            display: flex; gap: 15px;
+            font-family: 'Consolas', monospace;
             background: #F4F6F6; padding: 8px; border-radius: 4px; border-left: 4px solid #F1C40F;
+            align-items: center; /* Centrar verticalmente */
         }}
         .fin-item {{ font-size: 0.9rem; color: #2C3E50; font-weight: 700; }}
         .fin-lbl {{ color: #7F8C8D; font-weight: 400; margin-right: 5px; }}
@@ -187,15 +189,25 @@ def mostrar_dashboard():
     """, unsafe_allow_html=True)
 
     # ==========================================================================
-    # 2️⃣ INDICADORES FINANCIEROS
+    # 2️⃣ INDICADORES FINANCIEROS (INTEGRADO CON BOTÓN)
     # ==========================================================================
-    st.markdown(f"""
-    <div class="fin-row">
-        <div class="fin-item"><span class="fin-lbl">TC:</span> S/. {fin['tc']:.3f}</div>
-        <div class="fin-item"><span class="fin-lbl">Au (gr):</span> S/. {fin['gr_pen']:.2f}</div>
-        <div class="fin-item"><span class="fin-lbl">Au (oz):</span> $ {fin['oz_usd']:,.2f}</div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Usamos columnas para poner el botón al lado de la barra de precios
+    col_ticker, col_btn = st.columns([8, 1])
+    
+    with col_ticker:
+        st.markdown(f"""
+        <div class="fin-row">
+            <div class="fin-item"><span class="fin-lbl">TC:</span> S/. {fin['tc']:.3f}</div>
+            <div class="fin-item"><span class="fin-lbl">Au (gr):</span> S/. {fin['gr_pen']:.2f}</div>
+            <div class="fin-item"><span class="fin-lbl">Au (oz):</span> $ {fin['oz_usd']:,.2f}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_btn:
+        # Botón pequeño de refresco
+        if st.button("🔄", help="Actualizar Cotizaciones", use_container_width=True):
+            st.session_state['data_mercado'] = get_market_data()
+            st.rerun()
 
     # ==========================================================================
     # 3️⃣ ESTADO GENERAL (SEMÁFORO)
