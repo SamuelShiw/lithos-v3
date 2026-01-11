@@ -1,4 +1,10 @@
-import bcrypt
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except Exception:
+    bcrypt = None
+    BCRYPT_AVAILABLE = False
+
 from db.supabase_client import get_supabase
 import streamlit as st
 
@@ -12,9 +18,13 @@ import streamlit as st
 
 # --- UTILIDADES DE HASH ---
 def hash_password(password):
+    if not BCRYPT_AVAILABLE:
+        raise RuntimeError("bcrypt no disponible. Instala 'bcrypt' en tu entorno (pip install bcrypt)")
     return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 def check_password(password, hashed):
+    if not BCRYPT_AVAILABLE:
+        raise RuntimeError("bcrypt no disponible. Instala 'bcrypt' en tu entorno (pip install bcrypt)")
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 # --- LOGIN Y CONSULTAS ---
@@ -23,6 +33,8 @@ def validar_login(username, password):
     Valida el login soportando:
     - usuarios con 'password_hash' (hashed)
     - usuarios legacy con 'password' en texto plano (compatibilidad)
+
+    Agrega logs controlados para ayudar en debugging sin exponer contraseñas.
     """
     client = get_supabase()
     # 1. Buscar usuario activo
@@ -42,6 +54,9 @@ def validar_login(username, password):
         # Compatibilidad: verificar texto plano si existe
         if stored_pw and stored_pw == password:
             return usuario
+
+    # Ninguna verificación coincide
+    print(f"[debug login] Falló autenticación para '{username}'.")
     return None
 
 def get_todos_usuarios():
