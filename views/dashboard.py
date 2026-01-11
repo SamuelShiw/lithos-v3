@@ -51,7 +51,6 @@ def get_market_data():
             "gr_pen": 487.00,  # Ajustado a precio real mercado
             "status": False
         }
-        return {"tc": 3.75, "oz_usd": 4500.0, "gr_pen": 487.0, "status": False}
 
 def get_estado_mina():
     """
@@ -121,6 +120,68 @@ def get_estado_mina():
     return estado, kpis, alertas
 
 # ==============================================================================
+# 🎞️ COMPONENTES UI (ANIMACIONES, ETC.) - [NUEVO]
+# ==============================================================================
+def mostrar_animacion_perforacion():
+    """
+    Muestra una animación CSS estilo 'Plano Técnico' de una perforación.
+    """
+    st.markdown("""
+        <style>
+        /* CONTENEDOR PRINCIPAL */
+        .drill-container {
+            width: 100%; height: 120px; background-color: #F4F6F6;
+            border: 1px solid #D5D8DC; border-radius: 8px;
+            position: relative; overflow: hidden; margin-bottom: 20px;
+        }
+        /* ETIQUETA TÉCNICA */
+        .tech-label {
+            position: absolute; top: 5px; left: 10px; font-family: 'Consolas', monospace;
+            font-size: 0.7rem; color: #154360; opacity: 0.6; z-index: 10;
+        }
+        /* LA ROCA (El bloque derecho) */
+        .rock-face {
+            position: absolute; right: 0; top: 20px; width: 60%; height: 80px;
+            background: repeating-linear-gradient(45deg, #EAEDED, #EAEDED 5px, #D5D8DC 5px, #D5D8DC 10px);
+            border-left: 3px solid #154360;
+        }
+        /* EL TALADRO (La máquina a la izquierda) */
+        .jackleg-body {
+            position: absolute; left: 20px; top: 50px; width: 40px; height: 25px;
+            border: 2px solid #154360; background-color: transparent; animation: vibrar 0.1s infinite;
+        }
+        /* La pata del Jackleg */
+        .jackleg-leg {
+            position: absolute; left: 30px; top: 75px; width: 3px; height: 40px;
+            background-color: #154360; transform: rotate(-30deg); transform-origin: top center;
+            animation: vibrar 0.1s infinite;
+        }
+        /* EL BARRENO (La línea que perfora) */
+        .drill-steel {
+            position: absolute; left: 60px; top: 60px; height: 4px; background-color: #E74C3C;
+            width: 0%; animation: perforar 4s infinite linear, vibrar-acero 0.1s infinite;
+        }
+
+        /* --- ANIMACIONES (KEYFRAMES) --- */
+        @keyframes vibrar {
+            0% { transform: translate(0, 0); } 25% { transform: translate(1px, 1px); }
+            50% { transform: translate(0, -1px); } 75% { transform: translate(-1px, 0); } 100% { transform: translate(0, 0); }
+        }
+        @keyframes perforar {
+            0% { width: 0%; left: 60px; opacity: 1;} 70% { width: 50%; left: 60px; opacity: 1;}
+            80% { width: 50%; left: 60px; opacity: 0;} 81% { width: 0%; left: 60px; opacity: 0;} 100% { width: 0%; left: 60px; opacity: 1;}
+        }
+        @keyframes vibrar-acero {
+             0% { margin-top: 0px; } 50% { margin-top: 1px; } 100% { margin-top: 0px; }
+        }
+        </style>
+
+        <div class="drill-container">
+            <div class="tech-label">STATUS: PERFORACIÓN EN CURSO // Nv. 340</div>
+            <div class="rock-face"></div> <div class="jackleg-body"></div> <div class="jackleg-leg"></div> <div class="drill-steel"></div> </div>
+    """, unsafe_allow_html=True)
+
+# ==============================================================================
 # 🎨 INTERFAZ (UI) - MODO MINA
 # ==============================================================================
 def mostrar_dashboard():
@@ -133,7 +194,7 @@ def mostrar_dashboard():
     turno = "NOCHE" if (ahora.hour >= 18 or ahora.hour < 6) else "DÍA"
     fecha_str = ahora.strftime("%d-%m-%Y")
     
-    # --- [NUEVO] Lógica de Carga de Datos Financieros con Cache ---
+    # --- Lógica de Carga de Datos Financieros con Cache ---
     if 'data_mercado' not in st.session_state:
         st.session_state['data_mercado'] = get_market_data()
     
@@ -249,6 +310,13 @@ def mostrar_dashboard():
         st.markdown(f"""<div class="kpi-card"><div class="kpi-val">S/.{kpis['costo']/1000:,.1f}k</div><div class="kpi-tit">Costo Est.</div></div>""", unsafe_allow_html=True)
 
     st.write("") 
+
+    # ==========================================================================
+    # [NUEVO] 🎞️ ANIMACIÓN DE OPERACIÓN (Insertada aquí)
+    # ==========================================================================
+    mostrar_animacion_perforacion()
+
+    st.write("")
 
     # ==========================================================================
     # 5️⃣ ALERTAS & ACCIÓN RÁPIDA
