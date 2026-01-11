@@ -10,30 +10,47 @@ from db.supabase_client import get_supabase
 
 def get_market_data():
     """
-    Obtiene Dólar y Oro.
-    Calcula: Oro en Gramos (S/.) y Onzas ($).
+    Tu código adaptado para devolver el formato que necesita el Dashboard.
     """
     try:
-        # 1. Dólar (PEN=X)
-        usd = yf.Ticker("PEN=X").history(period="1d")
-        tc = usd['Close'].iloc[-1] if not usd.empty else 3.75
+        # 1. Traer Dólar (PEN=X)
+        dolar_ticker = yf.Ticker("PEN=X")
+        dolar_data = dolar_ticker.history(period="1d")
         
-        # 2. Oro (GC=F - Futuros Oro USD/Oz)
-        gold = yf.Ticker("GC=F").history(period="1d")
-        oz_usd = gold['Close'].iloc[-1] if not gold.empty else 2650.00
+        # Validación de seguridad
+        if dolar_data.empty: raise ValueError("Dólar vacío")
+        precio_dolar = float(dolar_data['Close'].iloc[-1])
+
+        # 2. Traer Oro (GC=F -> Futuros de Oro)
+        oro_ticker = yf.Ticker("GC=F")
+        oro_data = oro_ticker.history(period="1d")
         
-        # 3. Conversiones
-        gramo_usd = oz_usd / 31.1035
-        gramo_pen = gramo_usd * tc
-        
+        # Validación de seguridad
+        if oro_data.empty: raise ValueError("Oro vacío")
+        precio_oro_usd_oz = float(oro_data['Close'].iloc[-1])
+
+        # 3. Conversión (Tu fórmula)
+        # 1 Onza Troy = 31.1035 gramos
+        precio_oro_pen_oz = precio_oro_usd_oz * precio_dolar
+        precio_oro_pen_gramo = precio_oro_pen_oz / 31.1035
+
+        # RETORNO: Devolvemos un diccionario (no una tupla) para que el Dashboard lo entienda
         return {
-            "tc": tc,
-            "oz_usd": oz_usd,
-            "gr_pen": gramo_pen,
+            "tc": round(precio_dolar, 3),
+            "oz_usd": round(precio_oro_usd_oz, 2),
+            "gr_pen": round(precio_oro_pen_gramo, 2),
             "status": True
         }
-    except:
-        # FALLBACK: Valores aproximados de mercado 2026 si falla internet
+
+    except Exception as e:
+        # Si falla, usamos valores por defecto para que no se caiga la presentación
+        print(f"Error Yahoo: {e}")
+        return {
+            "tc": 3.75, 
+            "oz_usd": 4500.00, # Ajustado a precio real mercado
+            "gr_pen": 487.00,  # Ajustado a precio real mercado
+            "status": False
+        }
         return {"tc": 3.75, "oz_usd": 4500.0, "gr_pen": 487.0, "status": False}
 
 def get_estado_mina():
