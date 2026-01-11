@@ -122,63 +122,117 @@ def get_estado_mina():
 # ==============================================================================
 # 🎞️ COMPONENTES UI (ANIMACIONES, ETC.) - [NUEVO]
 # ==============================================================================
-def mostrar_animacion_perforacion():
+# ==============================================================================
+# 🎞️ COMPONENTES UI (ANIMACIÓN: WINCHE DE ARRASTRE)
+# ==============================================================================
+def mostrar_animacion_winche():
     """
-    Muestra una animación CSS estilo 'Plano Técnico' de una perforación.
+    Muestra una animación CSS estilo 'Plano Técnico' de limpieza con winche.
     """
     st.markdown("""
         <style>
         /* CONTENEDOR PRINCIPAL */
-        .drill-container {
+        .winch-container {
             width: 100%; height: 120px; background-color: #F4F6F6;
             border: 1px solid #D5D8DC; border-radius: 8px;
             position: relative; overflow: hidden; margin-bottom: 20px;
+            /* Fondo de cuadrícula técnica sutil */
+            background-image: 
+                linear-gradient(to right, rgba(21, 67, 96, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(21, 67, 96, 0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
         }
         /* ETIQUETA TÉCNICA */
         .tech-label {
             position: absolute; top: 5px; left: 10px; font-family: 'Consolas', monospace;
-            font-size: 0.7rem; color: #154360; opacity: 0.6; z-index: 10;
-        }
-        /* LA ROCA (El bloque derecho) */
-        .rock-face {
-            position: absolute; right: 0; top: 20px; width: 60%; height: 80px;
-            background: repeating-linear-gradient(45deg, #EAEDED, #EAEDED 5px, #D5D8DC 5px, #D5D8DC 10px);
-            border-left: 3px solid #154360;
-        }
-        /* EL TALADRO (La máquina a la izquierda) */
-        .jackleg-body {
-            position: absolute; left: 20px; top: 50px; width: 40px; height: 25px;
-            border: 2px solid #154360; background-color: transparent; animation: vibrar 0.1s infinite;
-        }
-        /* La pata del Jackleg */
-        .jackleg-leg {
-            position: absolute; left: 30px; top: 75px; width: 3px; height: 40px;
-            background-color: #154360; transform: rotate(-30deg); transform-origin: top center;
-            animation: vibrar 0.1s infinite;
-        }
-        /* EL BARRENO (La línea que perfora) */
-        .drill-steel {
-            position: absolute; left: 60px; top: 60px; height: 4px; background-color: #E74C3C;
-            width: 0%; animation: perforar 4s infinite linear, vibrar-acero 0.1s infinite;
+            font-size: 0.7rem; color: #154360; opacity: 0.8; z-index: 10; font-weight: 700;
         }
 
-        /* --- ANIMACIONES (KEYFRAMES) --- */
-        @keyframes vibrar {
-            0% { transform: translate(0, 0); } 25% { transform: translate(1px, 1px); }
-            50% { transform: translate(0, -1px); } 75% { transform: translate(-1px, 0); } 100% { transform: translate(0, 0); }
+        /* --- ELEMENTOS FIJOS --- */
+        .floor { position: absolute; bottom: 15px; width: 100%; height: 3px; background: #154360; }
+        
+        /* El Motor del Winche */
+        .winch-motor {
+           position: absolute; left: 15px; bottom: 18px; width: 35px; height: 30px;
+           background: #154360; border-radius: 4px; z-index: 2;
         }
-        @keyframes perforar {
-            0% { width: 0%; left: 60px; opacity: 1;} 70% { width: 50%; left: 60px; opacity: 1;}
-            80% { width: 50%; left: 60px; opacity: 0;} 81% { width: 0%; left: 60px; opacity: 0;} 100% { width: 0%; left: 60px; opacity: 1;}
+        /* El Tambor giratorio */
+        .winch-drum {
+           position: absolute; left: 20px; bottom: 23px; width: 20px; height: 20px;
+           border: 3px solid #F4F6F6; border-radius: 50%; border-left-color: #E74C3C; /* Rojo para ver el giro */
+           animation: spin-drum 3s infinite linear; z-index: 3;
         }
-        @keyframes vibrar-acero {
-             0% { margin-top: 0px; } 50% { margin-top: 1px; } 100% { margin-top: 0px; }
+        /* La Pila de Carga */
+        .muck-pile {
+            position: absolute; right: 5px; bottom: 18px; width: 70px; height: 40px;
+            background: #95A5A6; /* Gris roca */
+            clip-path: polygon(0% 100%, 20% 70%, 40% 90%, 60% 50%, 80% 80%, 100% 100%);
+        }
+
+        /* --- ELEMENTOS MÓVILES --- */
+        /* El Cable principal */
+        .pull-cable {
+            position: absolute; bottom: 30px; height: 2px; background: #154360;
+            transform-origin: left center; z-index: 1;
+            animation: cable-action 4s infinite ease-in-out;
+        }
+        /* La Pala (Scraper) */
+        .scraper-bucket {
+            position: absolute; bottom: 18px; width: 40px; height: 22px;
+            border: 3px solid #154360; border-right: none; /* Forma de C abierta */
+            background: transparent; z-index: 2;
+            animation: scrape-cycle 4s infinite ease-in-out;
+        }
+        /* La Carga dentro de la pala (se pone roja) */
+        .scraper-load {
+            position: absolute; width: 25px; height: 15px; background: #E74C3C;
+            bottom: 0; left: 5px; opacity: 0;
+            animation: load-visibility 4s infinite ease-in-out;
+        }
+
+        /* --- KEYFRAMES (LA MAGIA DE LA ANIMACIÓN) --- */
+        /* Giro del tambor (solo gira cuando jala) */
+        @keyframes spin-drum { 
+            0% { transform: rotate(0deg); } 
+            45% { transform: rotate(-720deg); } /* Gira rápido al jalar */
+            100% { transform: rotate(-720deg); } /* Se detiene al retornar */
+        }
+
+        /* Ciclo de la pala: ir a la pila -> regresar al winche */
+        @keyframes scrape-cycle {
+            0%   { left: 80%; } /* Inicio: cerca de la pila */
+            15%  { left: 80%; } /* Pausa breve para "cargar" */
+            45%  { left: 55px; } /* Llegada al winche (arrastrando) */
+            55%  { left: 55px; } /* Pausa para "descargar" */
+            100% { left: 80%; } /* Retorno vacío rápido */
+        }
+
+        /* Visibilidad de la carga (rojo) */
+        @keyframes load-visibility {
+            0%   { opacity: 0; } 
+            14%  { opacity: 0; } /* Empieza a cargar */
+            15%  { opacity: 1; } /* ¡Cargado! Se pone rojo */
+            45%  { opacity: 1; } /* Llega lleno */
+            50%  { opacity: 0; } /* Descarga (desaparece el rojo) */
+            100% { opacity: 0; } 
+        }
+        
+        /* Acción del cable (se estira y se recoge) */
+        @keyframes cable-action {
+             0%  { left: 40px; width: 75%; } /* Cable largo */
+             15% { left: 40px; width: 75%; }
+            45%  { left: 40px; width: 25px; }  /* Cable recogido (corto) */
+            55%  { left: 40px; width: 25px; }
+            100% { left: 40px; width: 75%; } /* Cable largo de nuevo */
         }
         </style>
 
-        <div class="drill-container">
-            <div class="tech-label">STATUS: PERFORACIÓN EN CURSO // Nv. 340</div>
-            <div class="rock-face"></div> <div class="jackleg-body"></div> <div class="jackleg-leg"></div> <div class="drill-steel"></div> </div>
+        <div class="winch-container">
+            <div class="tech-label">STATUS: LIMPIEZA DE FRENTE (WINCHE) // NV. 410</div>
+            
+            <div class="floor"></div>
+            <div class="muck-pile"></div> <div class="winch-motor"></div> <div class="winch-drum"></div>  <div class="pull-cable"></div> <div class="scraper-bucket">   <div class="scraper-load"></div> </div>
+        </div>
     """, unsafe_allow_html=True)
 
 # ==============================================================================
@@ -314,7 +368,7 @@ def mostrar_dashboard():
     # ==========================================================================
     # [NUEVO] 🎞️ ANIMACIÓN DE OPERACIÓN (Insertada aquí)
     # ==========================================================================
-    mostrar_animacion_perforacion()
+    mostrar_animacion_winche()
 
     st.write("")
 
