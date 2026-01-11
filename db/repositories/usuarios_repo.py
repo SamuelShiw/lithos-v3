@@ -1,5 +1,52 @@
 import bcrypt
 from db.supabase_client import get_supabase
+import streamlit as st
+
+
+# import bcrypt  # Comentado para la demo, usaremos texto plano por ahora
+
+def validar_login(username, password_input):
+    """
+    Valida usuario contra Supabase.
+    Acepta contraseña '1234' (texto plano) para tu Demo.
+    """
+    supabase = get_supabase()
+    
+    try:
+        # 1. Buscar al usuario por su username
+        response = supabase.table("usuarios")\
+            .select("*")\
+            .eq("username", username)\
+            .execute()
+        
+        # Si no existe el usuario
+        if not response.data:
+            return None
+        
+        user = response.data[0]
+        
+        # 2. Verificar si está activo
+        if not user.get('activo', True):
+            st.error("Usuario inactivo. Contacte al administrador.")
+            return None
+
+        # 3. VERIFICACIÓN DE CONTRASEÑA (CRÍTICO PARA TU DEMO)
+        # Aquí verificamos si la contraseña de la BD coincide con la escrita
+        
+        # A) Intento con Texto Plano (Esto es lo que hará funcionar tu '1234')
+        if user.get('password') == password_input:
+            return user
+            
+        # B) (Futuro) Aquí iría la validación de Hash si usaras encriptación
+        # if user.get('password_hash') and check_password_hash(user['password_hash'], password_input):
+        #     return user
+
+        # Si ninguna coincide
+        return None
+
+    except Exception as e:
+        print(f"Error en login: {e}")
+        return None
 
 # --- UTILIDADES DE HASH ---
 def hash_password(password):
@@ -81,3 +128,4 @@ def reset_password(id_usuario, new_password):
         return True, "Contraseña restablecida."
     except Exception as e:
         return False, str(e)
+    
