@@ -3,6 +3,8 @@ import pandas as pd
 import altair as alt # Para gráficos más bonitos si se requiere, o usamos los nativos
 from datetime import date, timedelta
 from io import BytesIO
+from datetime import datetime # <--- Agrega esto si no lo tienes
+
 
 # --- IMPORTACIONES DE LIBRERÍAS EXTERNAS (MANEJO DE ERRORES) ---
 try:
@@ -339,12 +341,64 @@ elif vista == "3.4 Reportes":
         # --- GENERADORES ---
         def generar_excel():
             output = BytesIO()
+            # Usamos xlsxwriter como motor para dar formato
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-                df_export.to_excel(writer, sheet_name='Resumen', index=False)
-                if not df_ev.empty: 
-                    # Limpieza simple para excel
-                    df_clean = df_ev.drop(columns=['created_at'], errors='ignore')
-                    df_clean.to_excel(writer, sheet_name='Eventos', index=False)
+                
+                # --- A. DEFINICIÓN DE FORMATOS ---
+                workbook = writer.book
+                
+                # Estilos visuales
+                fmt_titulo = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#154360', 'align': 'left'})
+                fmt_meta   = workbook.add_format({'font_size': 9, 'font_color': '#566573', 'italic': True})
+                fmt_header = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'top', 'fg_color': '#154360', 'font_color': '#FFFFFF', 'border': 1, 'align': 'center'})
+                fmt_cell   = workbook.add_format({'border': 1, 'align': 'left'})
+                fmt_num    = workbook.add_format({'border': 1, 'num_format': '#,##0.00', 'align': 'right'})
+
+                # --- B. HOJA 1: RESUMEN EJECUTIVO ---
+                sheet_name = 'Resumen Ejecutivo'
+                # Escribimos el DataFrame saltando las primeras 6 filas para poner el encabezado
+                df_export.to_excel(writer, sheet_name=sheet_name, startrow=6, index=False)
+                
+                worksheet = writer.sheets[sheet_name]
+                
+                # 1. Encabezado del Reporte (Quién y Cuándo)
+                worksheet.write('A1', "REPORTE OPERATIVO: LITHOS V3", fmt_titulo)
+                worksheet.write('A2', f"Generado por: {nombre_usr} ({rol})", fmt_meta)
+                worksheet.write('A3', f"Fecha de Emisión: {datetime.now().strftime('%d/%m/%Y %H:%M')}", fmt_meta)
+                worksheet.write('A4', f"Filtros: {f_ini} al {f_fin} | Labor: {f_labor_nom}", fmt_meta)
+
+                # 2. Formato a la Tabla (Headers y Celdas)
+                # Aplicar estilo al Encabezado de la tabla (Fila 6)
+                for col_num, value in enumerate(df_export.columns.values):
+                    worksheet.write(6, col_num, value, fmt_header)
+                
+                # Aplicar bordes y formato numérico a los datos
+                for row_num, row_data in enumerate(df_export.values):
+                    for col_num, cell_data in enumerate(row_data):
+                        # Si es número, formato moneda/decimal
+                        if isinstance(cell_data, (float, int)):
+                            worksheet.write(row_num + 7, col_num, cell_data, fmt_num)
+                        else:
+                            worksheet.write(row_num + 7, col_num, cell_data, fmt_cell)
+
+                # 3. AUTO-AJUSTE DE COLUMNAS (Para que se vea bien)
+                worksheet.set_column('A:A', 30) # Columna Indicador ancha
+                worksheet.set_column('B:B', 20) # Columna Valor
+
+                # --- C. HOJA 2: DETALLE DE EVENTOS (SI HAY DATOS) ---
+                if not df_ev.empty:
+                    sheet_ev = 'Detalle Eventos'
+                    df_clean = df_ev.drop(columns=['created_at', 'foto_url'], errors='ignore')
+                    df_clean.to_excel(writer, sheet_name=sheet_ev, startrow=1, index=False)
+                    ws_ev = writer.sheets[sheet_ev]
+                    
+                    # Formato Header
+                    for col_num, value in enumerate(df_clean.columns.values):
+                        ws_ev.write(1, col_num, value, fmt_header)
+                        ws_ev.set_column(col_num, col_num, 15) # Ancho estándar
+                    
+                    ws_ev.write('A1', "LOG DE EVENTOS OPERATIVOS - DETALLE", fmt_titulo)
+
             return output.getvalue()
 
         def generar_pdf():
