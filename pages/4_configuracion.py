@@ -65,18 +65,18 @@ st.markdown("Definición de estándares técnicos y gobierno de datos.")
 tab_std, tab_lab, tab_act, tab_rec, tab_usr = st.tabs(["📐 4.1 Estándares", "📍 4.2 Labores", "⚒️ 4.3 Actividades", "📦 4.4 Recursos", "👥 4.5 Personal"])
 
 # ==============================================================================
-# [NUEVO] TAB 4.1: ESTÁNDARES DE INGENIERÍA (LA FÁBRICA DE RECETAS)
+# [MODIFICADO] TAB 4.1: ESTÁNDARES INTELIGENTES
 # ==============================================================================
 with tab_std:
     c_std_list, c_std_form = st.columns([2, 1])
     
+    # --- COLUMNA IZQUIERDA: LISTADO (IGUAL QUE ANTES) ---
     with c_std_list:
         st.subheader("📚 Biblioteca de Estándares")
         est_db = get_todos_estandares()
         
         if est_db:
             df_est = pd.DataFrame(est_db)
-            # Calculamos columnas visuales para facilitar lectura
             df_est['Sección'] = df_est.apply(lambda x: f"{x['seccion_ancho']}m x {x['seccion_alto']}m", axis=1)
             df_est['Malla'] = df_est.apply(lambda x: f"{x['malla_taladros']} Tal. ({x['factor_carga_tal']} kg/tal)", axis=1)
             
@@ -92,32 +92,63 @@ with tab_std:
         else:
             st.info("No hay estándares definidos. Cree el primero a la derecha 👉")
 
+    # --- COLUMNA DERECHA: FORMULARIO INTELIGENTE ---
     with c_std_form:
         st.markdown("### 🛠️ Nuevo Estándar")
-        st.info("Define una 'receta' técnica que podrá ser usada por varias labores.")
+        st.info("El sistema sugerirá la malla según la roca.")
         
-        with st.form("form_std"):
-            s_nom = st.text_input("Nombre Estándar", placeholder="Ej: Galería 3.5x3.5 - Roca III-B")
-            
-            st.markdown("**Geometría & Geología**")
-            c1, c2 = st.columns(2)
-            s_ancho = c1.number_input("Ancho (m)", 1.0, 10.0, 3.0, 0.1)
-            s_alto = c2.number_input("Alto (m)", 1.0, 10.0, 3.0, 0.1)
-            s_roca = st.selectbox("Tipo Roca", ["II-A (Buena)", "III-A (Regular A)", "III-B (Regular B)", "IV-A (Mala A)", "IV-B (Mala B)", "V (Muy Mala)"])
-            s_dens = st.number_input("Densidad (TM/m3)", 1.0, 5.0, 2.7, 0.1)
-            
-            st.markdown("**Perforación y Voladura**")
-            c3, c4 = st.columns(2)
-            s_malla = c3.number_input("N° Taladros", 10, 100, 42)
-            s_factor = c4.number_input("Kg/Taladro", 0.1, 5.0, 0.8, 0.1)
-            
-            if st.form_submit_button("Guardar Estándar"):
-                if s_nom:
-                    ok, msg = crear_estandar(s_nom, s_ancho, s_alto, s_roca, s_dens, s_malla, s_factor)
-                    if ok: st.success("✅ Estándar creado"); st.rerun()
-                    else: st.error(msg)
-                else:
-                    st.error("Falta nombre")
+        # 1. DICCIONARIO DE SUGERENCIAS (TU LÓGICA MINERA)
+        # Aquí defines "Qué roca sugiere qué malla"
+        SUGERENCIAS_MALLA = {
+            "II-A (Buena)":      {"tal": 38, "fc": 0.90}, # Roca dura, menos taladros, más carga
+            "III-A (Regular A)": {"tal": 42, "fc": 0.85},
+            "III-B (Regular B)": {"tal": 45, "fc": 0.80}, # Estándar típico
+            "IV-A (Mala A)":     {"tal": 48, "fc": 0.70}, # Más taladros para controlar pared, menos carga
+            "IV-B (Mala B)":     {"tal": 52, "fc": 0.60},
+            "V (Muy Mala)":      {"tal": 55, "fc": 0.50}  # Mucho taladro de alivio
+        }
+        
+        # 2. INPUTS (SIN st.form PARA PERMITIR INTERACTIVIDAD)
+        s_nom = st.text_input("Nombre Estándar", placeholder="Ej: Galería 3.5x3.5 - Roca III-B")
+        
+        st.markdown("**Geometría & Geología**")
+        c1, c2 = st.columns(2)
+        s_ancho = c1.number_input("Ancho (m)", 1.0, 10.0, 3.0, 0.1)
+        s_alto = c2.number_input("Alto (m)", 1.0, 10.0, 3.0, 0.1)
+        
+        # EL SELECTOR DISPARADOR
+        opciones_roca = list(SUGERENCIAS_MALLA.keys())
+        # key='s_roca_sel' permite a Streamlit saber si esto cambió
+        s_roca = st.selectbox("Tipo Roca", opciones_roca, index=2, key="s_roca_sel")
+        
+        # OBTENER VALORES SUGERIDOS
+        sug_tal = SUGERENCIAS_MALLA[s_roca]["tal"]
+        sug_fc = SUGERENCIAS_MALLA[s_roca]["fc"]
+        
+        s_dens = st.number_input("Densidad (TM/m3)", 1.0, 5.0, 2.7, 0.1)
+        
+        st.markdown("**Perforación y Voladura**")
+        c3, c4 = st.columns(2)
+        
+        # AQUÍ ESTÁ LA MAGIA: 'value' se actualiza con la sugerencia
+        s_malla = c3.number_input("N° Taladros", min_value=10, max_value=100, value=sug_tal)
+        s_factor = c4.number_input("Kg/Taladro", min_value=0.1, max_value=5.0, value=sug_fc, step=0.01)
+        
+        st.caption(f"💡 Sugerencia: {sug_tal} taladros para roca {s_roca[:5]}")
+
+        st.divider()
+        
+        # BOTÓN DE GUARDADO (ACTÚA MANUALMENTE)
+        if st.button("💾 Guardar Estándar", use_container_width=True):
+            if s_nom:
+                ok, msg = crear_estandar(s_nom, s_ancho, s_alto, s_roca, s_dens, s_malla, s_factor)
+                if ok: 
+                    st.success("✅ Estándar creado")
+                    st.rerun() # Recargamos para ver la tabla actualizada
+                else: 
+                    st.error(msg)
+            else:
+                st.error("Falta nombre")
 
 # ==============================================================================
 # TAB 4.2: GESTIÓN DE LABORES (MODIFICADO CON VINCULACIÓN)
