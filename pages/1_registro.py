@@ -10,6 +10,27 @@ from db.repositories.recursos_repo import get_recursos_activos
 from services.registro_eventos import registrar_nuevo_evento
 
 # ==============================================================================
+# [NUEVO] 🧠 CEREBRO DE INGENIERÍA (SIMULACIÓN DE ESTÁNDARES)
+# ==============================================================================
+# Esto simula la tabla de estándares que el Ingeniero pidió.
+# Relaciona el Nombre de la Labor con su Geometría y Geología.
+ESTANDARES_MINA = {
+    # Nombre Labor (Parcial): {Seccion (m2), Densidad, Roca, Malla Teórica, Factor Carga kg/tal}
+    "CX": {"seccion": 12.0, "densidad": 2.8, "roca": "III-B (Regular)", "taladros_std": 45, "fc": 0.8},
+    "RP": {"seccion": 16.0, "densidad": 2.7, "roca": "II-A (Buena)",    "taladros_std": 52, "fc": 0.9},
+    "TJ": {"seccion": 4.0,  "densidad": 3.2, "roca": "IV (Mala)",       "taladros_std": 28, "fc": 0.6},
+    "GL": {"seccion": 9.0,  "densidad": 2.8, "roca": "III-A",           "taladros_std": 38, "fc": 0.75},
+}
+
+def get_parametros_labor(nombre_labor):
+    """Busca los parámetros técnicos según el nombre de la labor."""
+    for key, params in ESTANDARES_MINA.items():
+        if key in nombre_labor:
+            return params
+    # Valor por defecto (Promedio) si no encuentra coincidencia
+    return {"seccion": 10.0, "densidad": 2.8, "roca": "Estándar", "taladros_std": 40, "fc": 0.8}
+
+# ==============================================================================
 # 🔒 1. SEGURIDAD DE SESIÓN
 # ==============================================================================
 if 'user' not in st.session_state or st.session_state.user is None:
@@ -101,6 +122,18 @@ st.markdown("""
     .stSelectbox, .stTextInput, .stNumberInput, .stDateInput {
         margin-bottom: 10px;
     }
+    
+    /* [NUEVO] Estilo para tarjeta de ingeniería */
+    .engineering-card {
+        background-color: #EBF5FB;
+        border-left: 5px solid #2980B9;
+        padding: 15px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        color: #154360;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -167,6 +200,9 @@ map_labores = {f"{l['nombre']} ({l.get('zona_nivel', '---')})": l for l in labor
 sel_labor = st.selectbox("Labor / Frente", list(map_labores.keys()))
 labor_actual = map_labores[sel_labor]
 
+# [NUEVO] OBTENER PARÁMETROS DE INGENIERÍA PARA LA LABOR SELECCIONADA
+params_ing = get_parametros_labor(labor_actual['nombre'])
+
 # Actividades (Sin filtro estricto)
 actividades_geo = get_actividades_activas(filtro_geo_id=None) 
 map_acts = {a['nombre']: a for a in actividades_geo} 
@@ -202,6 +238,26 @@ with col_fis2: r_mts = st.number_input("Avance (m)", min_value=0.0, step=0.1, fo
 with col_fis3:
     r_tal_prod = st.number_input("Tal. Producción", min_value=0, step=1)
     r_tal_serv = st.number_input("Tal. Servicios", min_value=0, step=1)
+
+# [NUEVO] TARJETA DE CÁLCULO AUTOMÁTICO (INGENIERÍA)
+# Esto responde al requerimiento: "cuando saca sección debe salir automatico el tonelaje"
+if r_mts > 0:
+    vol_teorico = r_mts * params_ing['seccion']
+    ton_teorica = vol_teorico * params_ing['densidad']
+    explo_teorico = params_ing['taladros_std'] * params_ing['fc']
+    
+    st.markdown(f"""
+    <div class="engineering-card">
+        <strong>🤖 CÁLCULO AUTOMÁTICO (MODELADO)</strong><br>
+        Según estándar <em>{params_ing['roca']}</em> (Sección {params_ing['seccion']} m²):<br>
+        <ul>
+            <li><strong>Volumen Quebrado:</strong> {vol_teorico:.2f} m³</li>
+            <li><strong>Tonelaje Esperado:</strong> {ton_teorica:.1f} TM (vs Real: {r_ton})</li>
+            <li><strong>Explosivo Teórico:</strong> {explo_teorico:.1f} kg (Malla: {params_ing['taladros_std']} tal)</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
 st.markdown('</div>', unsafe_allow_html=True)
 st.divider()
 
@@ -227,7 +283,23 @@ def render_inputs(lista, suffix):
 
 with t1: consumos_finales.extend(render_inputs(rec_explo, "exp"))
 with t2: consumos_finales.extend(render_inputs(rec_sost, "sos"))
-with t3: consumos_finales.extend(render_inputs(rec_acero, "ace"))
+
+# [NUEVO] LÓGICA DE ACEROS (PIES PERFORADOS)
+# Esto responde al requerimiento: "cuantos pies has perforado debe estar relacionado con los aceros"
+with t3: 
+    st.caption("🔧 Análisis de Vida Útil de Aceros")
+    c_ac1, c_ac2 = st.columns(2)
+    longitud_pies = c_ac1.selectbox("Longitud de Barreno (Pies)", [4, 5, 6, 8, 10], index=2)
+    
+    if r_tal_prod > 0:
+        total_pies = r_tal_prod * longitud_pies
+        c_ac2.metric("Total Pies Perforados", f"{total_pies} pies")
+        st.info("Ingrese abajo la cantidad de aceros que se rompieron o descartaron hoy para calcular el rendimiento.")
+    
+    # Renderizamos los inputs normales de aceros
+    consumos_aceros_registrados = render_inputs(rec_acero, "ace")
+    consumos_finales.extend(consumos_aceros_registrados)
+
 with t4: consumos_finales.extend(render_inputs(rec_otros, "otr"))
 st.markdown('</div>', unsafe_allow_html=True)
 st.divider()
@@ -294,7 +366,7 @@ if st.button("💾 REGISTRAR PARTE DIARIO", use_container_width=True):
         obs=obs_final,
         estado_op=estado_op, 
         tiempo_imp=0, 
-        motivo=detalle_parada,  # <--- 🔥 AQUÍ ESTABA EL ERROR (ANTES DECÍA 'None')
+        motivo=detalle_parada,  
         lista_consumos_ui=consumos_finales,
         lista_resultados_ui=res_list
     )
