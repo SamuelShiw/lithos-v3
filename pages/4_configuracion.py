@@ -7,6 +7,8 @@ from db.repositories.labores_repo import get_todas_labores, crear_labor, cambiar
 from db.repositories.actividades_repo import get_todas_actividades, crear_actividad, toggle_actividad
 from db.repositories.recursos_repo import get_todos_recursos, crear_recurso, actualizar_precio_recurso, toggle_recurso
 from db.repositories.usuarios_repo import get_todos_usuarios, crear_usuario, actualizar_datos_usuario, toggle_usuario, reset_password
+# [NUEVO] Repositorio de Ingeniería
+from db.repositories.estandares_repo import get_todos_estandares, crear_estandar
 
 # ==============================================================================
 # SEGURIDAD DE PÁGINA (Solo Admin entra aquí)
@@ -31,13 +33,16 @@ st.markdown("""
     [data-testid="stSidebarNav"] { display: none !important; }
 
     /* Tabs */
-    .stTabs [data-baseweb="tab-list"] { gap: 20px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [data-baseweb="tab"] { height: 50px; background-color: transparent; padding-top: 10px; }
-    .stTabs [aria-selected="true"] { background-color: #F8F9F9; border-bottom: 2px solid #154360; color: #154360; font-weight: bold; }
+    .stTabs [aria-selected="true"] { background-color: #F8F9F9; border-bottom: 3px solid #154360; color: #154360; font-weight: bold; }
 
     /* Inputs y Botones */
     .stSelectbox div[data-baseweb="select"] > div, .stTextInput input { background-color: #2C3E50 !important; color: white !important; }
     div.stButton > button { background-color: #154360; color: white; border-radius: 6px; height: 45px; }
+    
+    /* Estilo Especial para Tab de Ingeniería */
+    div[data-testid="stExpander"] { background-color: #F4F6F6; border: 1px solid #D5DBDB; border-radius: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -53,14 +58,69 @@ with st.sidebar:
     st.markdown("---")
     if st.button("Volver al Inicio"): st.switch_page("app.py")
 
-st.title("⚙️ Configuración del Sistema")
-st.markdown("Gobierno de datos maestros y ciclo de vida operativo.")
+st.title("⚙️ Configuración & Ingeniería")
+st.markdown("Definición de estándares técnicos y gobierno de datos.")
 
-# TABS PRINCIPALES
-tab_lab, tab_act, tab_rec, tab_usr = st.tabs(["📍 4.1 Labores", "⚒️ 4.2 Actividades", "📦 4.3 Recursos", "👥 4.4 Personal"])
+# TABS PRINCIPALES (5 Módulos)
+tab_std, tab_lab, tab_act, tab_rec, tab_usr = st.tabs(["📐 4.1 Estándares", "📍 4.2 Labores", "⚒️ 4.3 Actividades", "📦 4.4 Recursos", "👥 4.5 Personal"])
 
 # ==============================================================================
-# TAB 4.1: GESTIÓN DE LABORES
+# [NUEVO] TAB 4.1: ESTÁNDARES DE INGENIERÍA (LA FÁBRICA DE RECETAS)
+# ==============================================================================
+with tab_std:
+    c_std_list, c_std_form = st.columns([2, 1])
+    
+    with c_std_list:
+        st.subheader("📚 Biblioteca de Estándares")
+        est_db = get_todos_estandares()
+        
+        if est_db:
+            df_est = pd.DataFrame(est_db)
+            # Calculamos columnas visuales para facilitar lectura
+            df_est['Sección'] = df_est.apply(lambda x: f"{x['seccion_ancho']}m x {x['seccion_alto']}m", axis=1)
+            df_est['Malla'] = df_est.apply(lambda x: f"{x['malla_taladros']} Tal. ({x['factor_carga_tal']} kg/tal)", axis=1)
+            
+            st.dataframe(
+                df_est[['nombre', 'Sección', 'tipo_roca', 'Malla']],
+                column_config={
+                    "nombre": "Nombre del Estándar",
+                    "tipo_roca": "Roca",
+                    "Malla": st.column_config.TextColumn("Diseño P&V", width="medium")
+                },
+                use_container_width=True, height=400, hide_index=True
+            )
+        else:
+            st.info("No hay estándares definidos. Cree el primero a la derecha 👉")
+
+    with c_std_form:
+        st.markdown("### 🛠️ Nuevo Estándar")
+        st.info("Define una 'receta' técnica que podrá ser usada por varias labores.")
+        
+        with st.form("form_std"):
+            s_nom = st.text_input("Nombre Estándar", placeholder="Ej: Galería 3.5x3.5 - Roca III-B")
+            
+            st.markdown("**Geometría & Geología**")
+            c1, c2 = st.columns(2)
+            s_ancho = c1.number_input("Ancho (m)", 1.0, 10.0, 3.0, 0.1)
+            s_alto = c2.number_input("Alto (m)", 1.0, 10.0, 3.0, 0.1)
+            s_roca = st.selectbox("Tipo Roca", ["II-A (Buena)", "III-A (Regular A)", "III-B (Regular B)", "IV-A (Mala A)", "IV-B (Mala B)", "V (Muy Mala)"])
+            s_dens = st.number_input("Densidad (TM/m3)", 1.0, 5.0, 2.7, 0.1)
+            
+            st.markdown("**Perforación y Voladura**")
+            c3, c4 = st.columns(2)
+            s_malla = c3.number_input("N° Taladros", 10, 100, 42)
+            s_factor = c4.number_input("Kg/Taladro", 0.1, 5.0, 0.8, 0.1)
+            
+            if st.form_submit_button("Guardar Estándar"):
+                if s_nom:
+                    ok, msg = crear_estandar(s_nom, s_ancho, s_alto, s_roca, s_dens, s_malla, s_factor)
+                    if ok: st.success("✅ Estándar creado"); st.rerun()
+                    else: st.error(msg)
+                else:
+                    st.error("Falta nombre")
+
+# ==============================================================================
+# TAB 4.2: GESTIÓN DE LABORES (MODIFICADO CON VINCULACIÓN)
 # ==============================================================================
 with tab_lab:
     col_main, col_gestion = st.columns([2, 1])
@@ -74,8 +134,10 @@ with tab_lab:
             if 'estado_ciclo' not in df_lab.columns: df_lab['estado_ciclo'] = 'ACTIVA'
             if 'zona_nivel' not in df_lab.columns: df_lab['zona_nivel'] = '---'
             
+            cols_show = ['nombre', 'zona_nivel', 'estado_ciclo', 'motivo_estado']
+            
             st.dataframe(
-                df_lab[['nombre', 'zona_nivel', 'estado_ciclo', 'motivo_estado']],
+                df_lab[cols_show],
                 column_config={
                     "nombre": "Nombre Labor",
                     "zona_nivel": "Zona / Nivel",
@@ -95,6 +157,12 @@ with tab_lab:
         
         if accion == "Nueva Labor":
             st.markdown("#### ✨ Crear Labor")
+            
+            # [MODIFICADO] Cargamos estándares para el Dropdown
+            stds_disponibles = get_todos_estandares()
+            if not stds_disponibles:
+                st.warning("⚠️ Primero cree un Estándar en la pestaña 4.1")
+            
             with st.form("form_crear_labor"):
                 new_nombre = st.text_input("Nombre de la Labor", placeholder="Ej: Tajo 32")
                 new_zona = st.text_input("Zona o Nivel", placeholder="Ej: Nivel 340 - Zona Este")
@@ -102,11 +170,19 @@ with tab_lab:
                 tipos_mineros = ["Galería", "Crucero", "Rampa", "Pique", "Bypass", "Chimenea", "Subnivel", "Tajo", "Cámara"]
                 new_tipo = st.selectbox("Tipo Geométrico", tipos_mineros) 
                 
+                # SELECTOR DE ESTÁNDAR
+                map_stds = {s['nombre']: s['id'] for s in stds_disponibles} if stds_disponibles else {}
+                sel_std_nom = st.selectbox("Asignar Estándar Técnico", list(map_stds.keys()), disabled=not stds_disponibles)
+                
                 if st.form_submit_button("Crear Labor"):
                     if not new_nombre or not new_zona:
                         st.error("El nombre y la Zona/Nivel son obligatorios.")
+                    elif not stds_disponibles:
+                         st.error("No hay estándares disponibles.")
                     else:
-                        ok, msg = crear_labor(new_nombre, 1, new_zona) 
+                        estandar_id_sel = map_stds[sel_std_nom]
+                        # Llamamos a la función modificada con el ID del estándar
+                        ok, msg = crear_labor(new_nombre, new_zona, new_tipo, estandar_id_sel) 
                         if ok: st.success(msg); st.rerun()
                         else: st.error(f"Error: {msg}")
 
@@ -140,7 +216,7 @@ with tab_lab:
                 st.warning("No hay labores.")
 
 # ==============================================================================
-# TAB 4.2: GESTIÓN DE ACTIVIDADES
+# TAB 4.3: GESTIÓN DE ACTIVIDADES (TU CÓDIGO ORIGINAL RESTAURADO)
 # ==============================================================================
 with tab_act:
     col_lista_act, col_form_act = st.columns([2, 1])
@@ -210,7 +286,7 @@ with tab_act:
                 if ok: st.rerun()
 
 # ==============================================================================
-# TAB 4.3: GESTIÓN DE RECURSOS (Precios en Soles S/.)
+# TAB 4.4: GESTIÓN DE RECURSOS (TU CÓDIGO ORIGINAL RESTAURADO)
 # ==============================================================================
 with tab_rec:
     c_lista_rec, c_form_rec = st.columns([2, 1])
@@ -295,7 +371,7 @@ with tab_rec:
                     st.rerun()
 
 # ==============================================================================
-# TAB 4.4: GESTIÓN DE PERSONAL (COMPLETO)
+# TAB 4.5: GESTIÓN DE PERSONAL (TU CÓDIGO ORIGINAL RESTAURADO)
 # ==============================================================================
 with tab_usr:
     c_list_usr, c_form_usr = st.columns([2, 1])

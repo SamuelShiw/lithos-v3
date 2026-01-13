@@ -36,30 +36,16 @@ def get_labores_activas():
 #  TRANSACCIONES (ESCRITURA)
 # ==============================================================================
 
-def crear_labor(nombre, tipo_geo_id, zona_nivel_texto):
-    """
-    Crea una labor nueva.
-    Genera código automático y asigna estado inicial ACTIVA.
-    """
-    client = get_supabase()
-    
-    # Generar Código Automático (ej: "Tajo 340" -> "TAJO-340")
-    codigo_clean = re.sub(r'[^a-zA-Z0-9]', '-', nombre.upper())
-    codigo_final = codigo_clean[:20]
-
-    data = {
-        "nombre": nombre,
-        "codigo": codigo_final,
-        "zona_nivel": zona_nivel_texto, 
-        "tipo_geometrico_id": tipo_geo_id,
-        "estado_ciclo": "ACTIVA",
-        "motivo_estado": "Creación Inicial",
-        "fecha_estado": datetime.now().isoformat()
-    }
-    
+def crear_labor(nombre, zona_nivel, tipo_geo, estandar_id): # <--- Nuevo parámetro
     try:
-        client.table("labores").insert(data).execute()
-        return True, "Labor creada exitosamente."
+        data = {
+            "nombre": nombre,
+            "zona_nivel": zona_nivel,
+            "tipo_geometrico": tipo_geo, # Ajustar según tu columna real o usar diccionario
+            "estandar_id": estandar_id # <--- VINCULACIÓN
+        }
+        get_supabase().table("labores").insert(data).execute()
+        return True, "Labor creada y vinculada al estándar."
     except Exception as e:
         return False, str(e)
 
