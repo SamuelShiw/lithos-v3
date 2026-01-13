@@ -1,8 +1,9 @@
 # engine/api.py
 from fastapi import FastAPI
 from pydantic import BaseModel
-from engine.formulas import calcular_holmberg_simplificado
-from engine.modelo_ia import CerebroMinero
+# --- AQUÍ ESTÁ EL CAMBIO IMPORTANTE (USAR PUNTOS RELATIVOS) ---
+from .formulas import calcular_holmberg_simplificado
+from .modelo_ia import CerebroMinero
 
 app = FastAPI(title="Motor LITHOS AI")
 cerebro = CerebroMinero()
@@ -24,15 +25,13 @@ def calcular(datos: DatosFrente):
         datos.ancho, datos.alto, datos.tipo_roca
     )
     
-    # 3. Consenso (Lógica de Negocio)
-    # La IA suele ser más precisa en campo, pero Holmberg da la base teórica.
-    # Si la diferencia es pequeña, confiamos en la IA.
+    # 3. Consenso
     tal_final = tal_ia
     
     nota_ia = ""
     diferencia = tal_ia - tal_holmberg
     if diferencia > 0:
-        nota_ia = f"La IA aumentó {diferencia} taladros basado en históricos de roca similar."
+        nota_ia = f"La IA aumentó {diferencia} taladros basado en históricos."
     elif diferencia < 0:
         nota_ia = f"La IA optimizó reduciendo {abs(diferencia)} taladros."
     
@@ -42,5 +41,3 @@ def calcular(datos: DatosFrente):
         "ia_prediccion": tal_ia,
         "explicacion": f"{explicacion_fisica} \n\n🤖 Ajuste IA: {nota_ia}"
     }
-
-# Para correr esto, usa en la terminal: uvicorn engine.api:app --reload
