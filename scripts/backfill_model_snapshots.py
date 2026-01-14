@@ -90,6 +90,8 @@ def get_event_results(client, evento_id):
 
 def backfill_events(client, events, dry_run=False, force=False):
     processed=0; skipped=0; created=0
+    snapshots_previews = []
+    deltas = []
     for e in events:
         eid = e['id']
         # skip if snapshot exists and not force
@@ -164,9 +166,27 @@ def backfill_events(client, events, dry_run=False, force=False):
             "checksum": hash_snapshot({"inputs":inputs, "parameters":parametros, "outputs":outputs})
         }
 
+            # Collect preview snapshots for dry-run reporting
+        snapshot_preview = {
+            "evento_id": eid,
+            "inputs": inputs,
+            "parameters": parametros,
+            "steps": steps,
+            "outputs": outputs,
+            "formula_id": "BACKFILL_V0",
+            "checksum": hash_snapshot({"inputs":inputs, "parameters":parametros, "outputs":outputs})
+        }
+
         if dry_run:
-            print(f"[DRY] Evento {eid}: snapshot preview -> {json.dumps(snapshot, default=str)}")
+            print(f"[DRY] Evento {eid}: snapshot preview -> {json.dumps(snapshot_preview, default=str)}")
+            snapshots_previews.append(snapshot_preview)
+            # compute delta for reporting (ton)
+            delta_ton_pct = None
+            if ton_model and ton_model != 0:
+                delta_ton_pct = 100.0 * (ton_real - ton_model) / ton_model
+            deltas.append({"evento_id": eid, "delta_ton_pct": delta_ton_pct, "ton_model": ton_model, "ton_real": ton_real})
             created += 1
+            processed += 1
             continue
 
         # Si existe y force==True, borrar antiguo y crear nuevo
@@ -181,14 +201,35 @@ def backfill_events(client, events, dry_run=False, force=False):
         delta_ton_pct = None
         if ton_model and ton_model != 0:
             delta_ton_pct = 100.0 * (ton_real - ton_model) / ton_model
-        delta_kg_pct = None # kg_real not stored generally; can be calculated if consumos have data.
+
+        # Attempt to compute kg_real from consumptions if possible
+        kg_real = None
+        try:
+            consumos = client.table("consumo_recursos").select("cantidad, recurso_id").eq("evento_id", eid).execute().data or []
+            kg_sum = 0.0
+            for c in consumos:
+                # try to get resource peso_unitario_kg
+                r = client.table("recursos_catalogo").select("peso_unitario_kg, unidad_medida, tipo").eq("id", c['recurso_id']).limit(1).execute().data
+                if r:
+                    r0 = r[0]
+                    if r0.get('peso_unitario_kg'):
+                        kg_sum += float(c['cantidad']) * float(r0.get('peso_unitario_kg'))
+                    else:
+                        # If unidad is 'kg' and no peso_unitario, use cantidad directly
+                        if r0.get('unidad_medida') == 'kg':
+                            kg_sum += float(c['cantidad'])
+            if kg_sum > 0:
+                kg_real = kg_sum
+        except Exception:
+            kg_real = None
 
         upd = {
             "model_snapshot_id": new_snapshot_id,
             "estandar_version_id": ev_id,
             "ton_model": ton_model,
             "kg_expl_model": kg_model,
-            "delta_ton_pct": delta_ton_pct
+            "delta_ton_pct": delta_ton_pct,
+            "delta_kg_pct": None
         }
         client.table("eventos_operativos").update(upd).eq("id", eid).execute()
 
@@ -199,12 +240,36 @@ def backfill_events(client, events, dry_run=False, force=False):
             "ton_real": ton_real,
             "delta_ton_pct": delta_ton_pct,
             "kg_model": kg_model,
-            "kg_real": None,
+            "kg_real": kg_real,
             "delta_kg_pct": None
         }).execute()
 
         created += 1
         processed += 1
+
+    # After loop, if dry_run produce a report
+    if dry_run:
+        # flags
+        TH_TON = 20.0
+        TH_KG = 25.0
+        out_of_bounds = [d for d in deltas if d['delta_ton_pct'] is not None and abs(d['delta_ton_pct']) > TH_TON]
+        report = {
+            "summary": {"events_found": len(events), "processed_preview": processed, "skipped": skipped, "snapshots_preview_count": len(snapshots_previews)},
+            "snapshots_preview_sample": snapshots_previews[:5],
+            "deltas_sample": deltas[:10],
+            "out_of_bounds": out_of_bounds
+        }
+        # write report to file
+        import os, datetime
+        out_dir = os.path.join(os.path.dirname(__file__), 'output')
+        os.makedirs(out_dir, exist_ok=True)
+        ts = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
+        out_file = os.path.join(out_dir, f'backfill_dryrun_report_{ts}.json')
+        with open(out_file, 'w', encoding='utf-8') as f:
+            json.dump(report, f, indent=2, default=str)
+        print(f"Dry-run report written to: {out_file}")
+
+        return report
 
     return {"processed": processed, "skipped": skipped, "created": created}
 
